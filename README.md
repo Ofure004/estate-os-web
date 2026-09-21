@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EstateOS Web
 
-## Getting Started
+Access management for residents, guards, security supervisors, and estate managers.
+Built with Next.js, React, TanStack Query, and the existing EstateOS UI shell.
 
-First, run the development server:
+## Run locally
+
+1. Start `estate-os-backend` with its database and JWT configuration on port 3000.
+2. Create `.env.local` in this repository:
+
+   ```dotenv
+   ESTATEOS_API_URL=http://localhost:3000
+   ```
+
+3. Run `npm install` and `npm run dev -- --port 3001`.
+4. Open `http://localhost:3001/login` and use an existing backend account.
+
+The frontend and backend must use different ports. `ESTATEOS_API_URL` is server-only;
+requests use a same-origin proxy and the JWT stays in an HTTP-only session cookie.
+Production requires HTTPS. Sessions expire with the backend's `expiresIn`; the current
+backend provides no refresh endpoint, so users sign in again after expiry.
+
+Without an API URL, development retains the labeled shell preview. It has no simulated
+access data and cannot perform access operations. Production never uses preview accounts.
+
+## Available workflows
+
+- Resident: invitations, create invitation, detail, QR/manual pass, cancel invitation.
+- Guard/supervisor: choose a gate, verify a code or scanned credential, explicitly confirm
+  check-in, and record departure independently of pass entry validity.
+- Guard/supervisor/manager: current on-site visitors and paginated access activity.
+- Workspace selection uses `/auth/me` relationships; one workspace opens automatically.
+
+A connected QR scanner can type a token into the credential field. Camera scanning is
+not included. QR images contain only the backend token and are generated locally.
+
+See [integration notes](docs/access-management.md) for contracts and validation.
+
+## Checks
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run lint
+npm run typecheck
+npm test
+npm run build
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

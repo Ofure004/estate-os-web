@@ -1,0 +1,160 @@
+--- a/src/users/users.service.ts
++++ b/src/users/users.service.ts
+@@ -25,6 +25,27 @@
+       select: { ...publicUserSelect, passwordHash: true },
+     });
+   }
++  findContextById(id: string) {
++    const estate = { id: true, name: true, organizationId: true } as const;
++    return this.prisma.user.findUnique({
++      where: { id },
++      select: {
++        ...publicUserSelect,
++        memberships: { select: {
++          id: true, role: true, status: true,
++          organization: { select: { id: true, name: true } },
++        } },
++        residencies: { select: {
++          id: true, status: true, startedAt: true, endedAt: true,
++          unit: { select: { id: true, name: true, code: true, estate: { select: estate } } },
++        } },
++        staffAssignments: { select: {
++          id: true, role: true, status: true, startedAt: true, endedAt: true,
++          estate: { select: estate },
++        } },
++      },
++    });
++  }
+   findById(id: string) {
+     return this.prisma.user.findUnique({
+       where: { id },
+--- a/src/auth/auth.controller.ts
++++ b/src/auth/auth.controller.ts
+@@ -2,6 +2,8 @@
+   Body,
+   Controller,
+   Get,
++  Header,
++  UnauthorizedException,
+   HttpCode,
+   HttpStatus,
+   Inject,
+@@ -10,13 +12,17 @@
+   UseGuards,
+   ValidationPipe,
+ } from '@nestjs/common';
++import { UsersService } from '../users/users.service.js';
+ import { AuthService } from './auth.service.js';
+ import { LoginDto } from './dto/login.dto.js';
+ import { JwtAuthGuard } from './jwt-auth.guard.js';
+ import type { AuthenticatedRequest } from './jwt-auth.guard.js';
+ @Controller('auth')
+ export class AuthController {
+-  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
++  constructor(
++    @Inject(AuthService) private readonly auth: AuthService,
++    @Inject(UsersService) private readonly users: UsersService,
++  ) {}
+   @Post('login')
+   @HttpCode(HttpStatus.OK)
+   login(
+@@ -33,8 +39,11 @@
+     return this.auth.login(dto.email, dto.password);
+   }
+   @Get('me')
++  @Header('Cache-Control', 'no-store')
+   @UseGuards(JwtAuthGuard)
+-  me(@Req() request: AuthenticatedRequest) {
+-    return request.user;
++  async me(@Req() request: AuthenticatedRequest) {
++    const context = await this.users.findContextById(request.user.id);
++    if (!context) throw new UnauthorizedException();
++    return context;
+   }
+ }
+--- /dev/null
++++ b/src/access-management/gates.controller.ts
+@@ -0,0 +1,15 @@
++import { Controller, Get, Header, Inject, Param, Req } from '@nestjs/common';
++import { Authorize } from '../authorization/authorize.decorator.js';
++import type { AuthorizedRequest } from '../authorization/authorization.types.js';
++import { AccessVisibilityService } from './access-visibility.service.js';
++
++@Controller('estates/:estateId/gates')
++@Authorize({ scope: 'estate', roles: ['ESTATE_MANAGER', 'SECURITY_SUPERVISOR', 'GUARD'] })
++export class GatesController {
++  constructor(@Inject(AccessVisibilityService) private readonly visibility: AccessVisibilityService) {}
++  @Get()
++  @Header('Cache-Control', 'no-store')
++  list(@Req() request: AuthorizedRequest, @Param('estateId') estateId: string) {
++    return this.visibility.findGates(request.user.id, estateId);
++  }
++}
+--- a/src/access-management/access-visibility.service.ts
++++ b/src/access-management/access-visibility.service.ts
+@@ -52,6 +52,14 @@
+         roles: ['ESTATE_MANAGER', 'SECURITY_SUPERVISOR', 'GUARD'],
+       },
+     );
++  }
++  async findGates(currentUserId: string, estateId: string) {
++    await this.authorize(currentUserId, estateId);
++    return this.prisma.gate.findMany({
++      where: { estateId },
++      select: { id: true, name: true, code: true, status: true },
++      orderBy: [{ name: 'asc' }, { id: 'asc' }],
++    });
+   }
+   private scope(estateId: string): Prisma.AccessEventWhereInput {
+     return {
+--- a/src/access-management/access-management.module.ts
++++ b/src/access-management/access-management.module.ts
+@@ -1,3 +1,4 @@
++import { GatesController } from './gates.controller.js';
+ import { AccessVisibilityService } from './access-visibility.service.js';
+ import { AccessVisibilityController } from './access-visibility.controller.js';
+ import { AccessVisitService } from './access-visit.service.js';
+@@ -11,6 +12,7 @@
+ @Module({
+   imports: [PrismaModule, AuthorizationModule, AccessPassModule],
+   controllers: [
++    GatesController,
+     AccessVerificationController,
+     AccessVisitController,
+     AccessVisibilityController,
+--- a/test/auth.e2e-spec.ts
++++ b/test/auth.e2e-spec.ts
+@@ -36,7 +36,7 @@
+     findUnique.mockReset();
+     findUnique.mockImplementation(async ({ where, select }) => {
+       if (where.email === user.email || where.id === user.id) {
+-        return select.passwordHash ? { ...user, passwordHash } : { ...user };
++        return select.passwordHash ? { ...user, passwordHash } : select.residencies ? { ...user, memberships: [], residencies: [], staffAssignments: [] } : { ...user };
+       }
+       return null;
+     });
+@@ -61,17 +61,14 @@
+       .get('/auth/me')
+       .set('Authorization', `Bearer ${login.body.accessToken}`)
+       .expect(200);
+-    expect(me.body).toEqual(user);
+-    expect(findUnique).toHaveBeenLastCalledWith({
++    expect(me.body).toEqual({ ...user, memberships: [], residencies: [], staffAssignments: [] });
++    expect(me.headers["cache-control"]).toBe("no-store");
++    expect(findUnique).toHaveBeenLastCalledWith(expect.objectContaining({
+       where: { id: user.id },
+-      select: {
+-        id: true,
+-        email: true,
+-        firstName: true,
+-        lastName: true,
+-        phone: true,
+-      },
+-    });
++      select: expect.objectContaining({
++        id: true, email: true, memberships: expect.any(Object), residencies: expect.any(Object), staffAssignments: expect.any(Object),
++      }),
++    }));
+   });
+ 
+   it('returns the same error for unknown users and incorrect passwords', async () => {
