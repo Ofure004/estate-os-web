@@ -20,6 +20,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   if (!activeWorkspace) return <WorkspaceEntry />;
   const screen = getScreen(pathname) ?? navigation[0];
   const allowed = getNavigation(activeWorkspace).some((item) => item.id === screen.id);
+  const nestedPageLabel = pathname === `${screen.href}/new`
+    ? "Invite visitor"
+    : pathname.startsWith(`${screen.href}/`)
+      ? screen.id === "visitors" ? "Visitor details" : "Details"
+      : null;
 
   return (
     <div data-collapsed={collapsed} className="min-h-dvh">
@@ -44,9 +49,25 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </DialogTrigger>
         </PageHeader>
         <main id="main-content" tabIndex={-1} className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col px-5 py-6 outline-none sm:px-7 sm:py-7">
-          <div className="mb-6 flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground" aria-label="Current workspace">
-            <span className="truncate">{activeWorkspace.name}</span><ChevronRight className="size-3 shrink-0" aria-hidden="true" /><span className="shrink-0 font-medium text-secondary-foreground">{screen.label}</span>
-          </div>
+          <nav className="mb-6 min-w-0 text-[11px] text-muted-foreground" aria-label="Breadcrumb">
+            <ol className="flex min-w-0 items-center gap-2">
+              <li className="min-w-0">
+                <Link href={href("/overview")} className="block truncate rounded-sm transition-colors hover:text-foreground hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
+                  {activeWorkspace.name}
+                </Link>
+              </li>
+              <li aria-hidden="true"><ChevronRight className="size-3 shrink-0" /></li>
+              <li className="shrink-0 font-medium text-secondary-foreground">
+                {!nestedPageLabel
+                  ? <span aria-current="page">{screen.label}</span>
+                  : <Link href={href(screen.href)} className="rounded-sm transition-colors hover:text-foreground hover:underline hover:underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">{screen.label}</Link>}
+              </li>
+              {nestedPageLabel && <>
+                <li aria-hidden="true"><ChevronRight className="size-3 shrink-0" /></li>
+                <li className="truncate font-medium text-secondary-foreground" aria-current="page">{nestedPageLabel}</li>
+              </>}
+            </ol>
+          </nav>
           <div key={activeWorkspace.id} className="flex-1">
             {allowed ? children : <section className="rounded-2xl border bg-card p-8"><h2 className="text-lg font-bold">This page isn’t available in this workspace</h2><p className="mt-2 text-sm text-muted-foreground">Choose another workspace or return to your overview.</p><Link href={href("/overview")} className="mt-5 inline-block text-sm font-semibold text-accent-foreground underline underline-offset-4">Go to overview</Link></section>}
           </div>

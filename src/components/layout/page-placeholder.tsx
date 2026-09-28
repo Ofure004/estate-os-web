@@ -6,6 +6,7 @@ const copy: Record<ScreenId, { title: string; description: string }> = {
   visitors: { title: "A space for every visit", description: "Visitor invitations and visit details will live here. This workspace is being prepared for your community." },
   gate: { title: "Ready for the next arrival", description: "Your gate workspace will bring visitor verification, check-in and check-out together here." },
   access: { title: "Every arrival. Every departure.", description: "On-site visitors and recent gate activity will appear here, giving you a clear view of access across your estate." },
+  onboarding: { title: "People join here", description: "Invite residents and estate staff to their assigned roles." },
 };
 
 export function PagePlaceholder({ screen }: { screen: ScreenId }) {

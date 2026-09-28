@@ -7,8 +7,10 @@ The existing `/overview`, `/visitors`, `/gate`, and `/access` routes are retaine
 
 The implementation was checked against the sibling `estate-os-backend` source.
 Invitation list/detail/create/cancel/pass APIs are resident-only. Gate verify/check-in/
-check-out APIs require a guard or supervisor assignment. Managers see on-site and
-activity data; there is no staff invitation list in the current backend.
+check-out APIs require a guard or supervisor assignment. Guards, supervisors, and
+estate managers can read the paginated operational visitor list at
+`GET /estates/:estateId/access/visitors`; action controls remain restricted to guards
+and supervisors and always require a credential and selected gate.
 
 Two backend additions were applied to support the integration:
 
@@ -31,12 +33,15 @@ that exists in the authenticated context. Organization pages remain deferred.
 `/api/backend/[...path]` allowlists supported methods and paths. It forwards the session
 JWT server-side, disables caching, checks the Origin on writes, and avoids redirects
 when contacting the configured backend. Login sends only a success result to the
-browser and sets an HTTP-only, same-site cookie using the backend expiry. API 401
-responses clear the cookie and display a sign-in link. Sign-out clears it and returns
-to login. There is no invented token refresh flow.
+browser and stores the access and rotating refresh tokens in separate HTTP-only,
+same-site cookies. The proxy shares an in-flight refresh within a server process,
+retries a protected request once, and keeps the session on transient refresh errors.
+Refresh 401 clears the cookies. Sign-out revokes the latest refresh token, clears the
+cookies, and returns to login. Dashboard rendering renews an expired session through
+the same-origin refresh route before loading workspace context again.
 
 Identity/workspaces load on the server. TanStack Query owns invitations, passes, gate
-lists, presence, and activity. Keys include user and estate. Workspace changes remount
+lists, the staff visitor list, presence, and activity. Keys include user and estate. Workspace changes remount
 forms and gate verification state; login navigation reloads server context. URL selection
 persists the active workspace through navigation and reload without a global user role.
 
@@ -46,8 +51,8 @@ while visible; passes refresh every 30 seconds. Mutations never auto-retry.
 
 ## Business behavior
 
-- The invitation form submits without `hostResidencyId` initially. Only
-  `HOST_RESIDENCY_REQUIRED` reveals a same-estate active unit selector.
+- The invitation form shows a same-estate active unit selector when multiple resident
+  workspaces exist. `HOST_RESIDENCY_REQUIRED` also reveals it as a fallback.
 - Date inputs use the device timezone and become ISO timestamps at submission.
   Display formatting never changes API values or derives a separate lifecycle.
 - Pass QR codes encode the opaque `token`, locally, without a third-party QR service.
@@ -57,12 +62,15 @@ while visible; passes refresh every 30 seconds. Mutations never auto-retry.
 - Checkout is independent of verification. Expired/cancelled/revoked passes may still
   close an open visit. The on-site screen links operators to Live Gate for departure.
 - HTTP 200 with `valid: false` or `success: false` is a business failure, never a success.
-- Presence comes from `/access/onsite`. Activity is paginated and immutable.
+- Presence comes from `/access/onsite`. Activity is paginated and immutable. The staff
+  visitor list is paginated, supports expected/on-site/departed filters, polls every 15
+  seconds, and is refetched after successful gate actions.
 
 ## Validation and remaining limits
 
 Frontend tests cover workspace scope/timing, transport allowlisting, cookie privacy,
-cross-origin writes, API error normalization, and relationship parsing. Frontend lint and typecheck passed, as did 14 tests. The production build passed with
+cross-origin writes, API error normalization, relationship parsing, shared refresh,
+visitor badges, and gate outcomes. Frontend lint and typecheck passed, as did 17 tests. The production build passed with
 `npm run build -- --webpack` inside the sandbox; the default Turbopack build stalled.
 
 Backend lint and TypeScript checks passed after the contract additions. The backend
@@ -71,5 +79,6 @@ the elevated test run was declined. The existing auth HTTP test was updated for 
 expanded context response, but its execution remains outstanding.
 
 No live database-backed user journey or browser visual review has been performed.
-Camera QR capture and session refresh are outside this implementation; hardware scanner
-input and manual pass codes are supported.
+Camera QR capture is outside this implementation; hardware scanner input and manual
+pass codes are supported. Refresh sharing is process-local; multi-instance deployments
+need a shared session store to coordinate rotation across instances.

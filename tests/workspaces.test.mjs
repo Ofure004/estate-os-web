@@ -75,7 +75,7 @@ test("organization membership never manufactures estate access", () => {
   ] }), now);
   assert.equal(workspaces.length, 1);
   assert.equal(workspaces[0].estateId, undefined);
-  assert.deepEqual(getNavigation(workspaces[0]).map((item) => item.id), ["overview"]);
+  assert.deepEqual(getNavigation(workspaces[0]).map((item) => item.id), ["overview", "onboarding"]);
 });
 
 test("resident navigation has no operational gate or estate-wide activity pages", () => {
@@ -91,6 +91,6 @@ test("a revoked selection cannot resolve against refreshed relationships", () =>
 
 test("staff navigation matches the implemented backend permissions", () => {
   const [guard, manager] = deriveWorkspaces(context({ staffAssignments: [staff("guard"), staff("manager", "ESTATE_MANAGER")] }), now);
-  assert.deepEqual(getNavigation(guard).map((item) => item.id), ["overview", "gate", "access"]);
-  assert.deepEqual(getNavigation(manager).map((item) => item.id), ["overview", "access"]);
+  assert.deepEqual(getNavigation(guard).map((item) => item.id), ["overview", "visitors", "gate", "access"]);
+  assert.deepEqual(getNavigation(manager).map((item) => item.id), ["overview", "visitors", "access", "onboarding"]);
 });

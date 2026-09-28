@@ -16,9 +16,11 @@ Built with Next.js, React, TanStack Query, and the existing EstateOS UI shell.
 4. Open `http://localhost:3001/login` and use an existing backend account.
 
 The frontend and backend must use different ports. `ESTATEOS_API_URL` is server-only;
-requests use a same-origin proxy and the JWT stays in an HTTP-only session cookie.
-Production requires HTTPS. Sessions expire with the backend's `expiresIn`; the current
-backend provides no refresh endpoint, so users sign in again after expiry.
+requests use a same-origin proxy. Access and rotating refresh tokens stay in separate
+HTTP-only, same-site cookies and are never returned to browser code. The proxy retries
+one protected request after a successful refresh, and sign-out revokes the latest
+refresh token. Production requires HTTPS. Sessions created before refresh support
+require a new sign-in.
 
 Without an API URL, development retains the labeled shell preview. It has no simulated
 access data and cannot perform access operations. Production never uses preview accounts.

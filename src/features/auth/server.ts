@@ -4,13 +4,11 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { identitySchema, contextSchema } from "./context-schema";
 import type { AuthenticatedContext } from "./types";
+import { refreshCookieName, sessionCookieName } from "./session";
 
 export type DashboardContext =
   | { status: "ready"; context: AuthenticatedContext }
-  | { status: "unconfigured" | "unauthenticated" | "unavailable" | "context-unavailable" };
-
-/** The login integration must set this HTTP-only cookie with the backend JWT. */
-export const sessionCookieName = process.env.ESTATEOS_SESSION_COOKIE || "estateos_session";
+  | { status: "unconfigured" | "unauthenticated" | "unavailable" | "context-unavailable" | "refresh-required" };
 
 export const loadDashboardContext = cache(async (): Promise<DashboardContext> => {
   // Read request state even before configuration checks, so protected routes are
@@ -19,7 +17,7 @@ export const loadDashboardContext = cache(async (): Promise<DashboardContext> =>
   const apiUrl = process.env.ESTATEOS_API_URL;
   if (!apiUrl) return { status: "unconfigured" };
   const token = cookieStore.get(sessionCookieName)?.value;
-  if (!token) return { status: "unauthenticated" };
+  if (!token) return { status: cookieStore.get(refreshCookieName) ? "refresh-required" : "unauthenticated" };
 
   try {
     const response = await fetch(`${apiUrl.replace(/\/$/, "")}/auth/me`, {
@@ -27,7 +25,8 @@ export const loadDashboardContext = cache(async (): Promise<DashboardContext> =>
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
     });
-    if (response.status === 401 || response.status === 403) return { status: "unauthenticated" };
+    if (response.status === 401) return { status: cookieStore.get(refreshCookieName) ? "refresh-required" : "unauthenticated" };
+    if (response.status === 403) return { status: "unauthenticated" };
     if (!response.ok) return { status: "unavailable" };
     const body = await response.json();
     const result = identitySchema.safeParse(body);

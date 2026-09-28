@@ -1,2 +1,2 @@
-import { Visitors } from "@/features/access/visitors";
-export default function Page() { return <Visitors />; }
+import { VisitorsPage } from "@/features/access/visitors-page";
+export default function Page() { return <VisitorsPage />; }
